@@ -1,0 +1,142 @@
+---
+title: "GSEA_usingMsigDB"
+author: "Basilio Cieza Huaman"
+date: "2024-11-29"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Description
+
+Perform Gene Set Enrichment Analysis (GSEA) on a list of genes with p-values to identify enriched pathways or biological processes for multiple parameter sets.
+
+
+```{r}
+# Install necessary packages (only run this if packages are not installed)
+# install.packages(c("tidyverse", "clusterProfiler", "org.Hs.eg.db", "DOSE", "msigdbr"))
+
+# Load required libraries
+library(tidyverse)      # For data manipulation
+library(clusterProfiler) # For GSEA
+library(org.Hs.eg.db)   # Human gene annotation database
+library(DOSE)           # For disease ontology enrichment
+library(msigdbr)        # For MSigDB gene sets
+```
+
+## Including Plots
+
+STEP 2: Define the GSEA Function:
+
+```{r}
+run_gsea <- function(MyMsigDB, gene, cohort = "EUR5", study = "rare_var") {
+  # Define paths
+  input_folder <- "inputs"
+  output_folder <- "outputs"
+  mypath <- "C:/Users/bciez/Documents/Basilio/UCSF/WGS_Project/sum_stat/"
+  
+  # Construct file paths
+  input_file <- file.path(mypath, study, input_folder, paste0(study, "_", cohort, "_", gene, ".txt"))
+  print(input_file)
+  output_file <- file.path(mypath, study, output_folder, paste0("gsea_results_", study, "_", cohort, "_", gene, "_", MyMsigDB, ".csv"))
+  dotplot_file <- file.path(mypath, study, output_folder, paste0("gsea_dotplot_", study, "_", cohort, "_", gene, "_", MyMsigDB, ".png"))
+  
+  # Load input data
+  cat("Processing:", input_file, "\n")
+  gene_data <- read.csv(input_file)
+  colnames(gene_data)[c(1, 2)] <- c("Gene_Symbol", "pvalue")  # Adjust column names
+  
+  # Preprocess data
+  gene_data <- gene_data %>%
+    mutate(score = -log10(pvalue)) %>%
+    arrange(desc(score)) %>%
+    na.omit()  # Remove rows with NA values
+  
+  # Map Gene Symbols to Entrez IDs
+  gene_data <- gene_data %>%
+    mutate(Entrez_ID = mapIds(org.Hs.eg.db, 
+                              keys = Gene_Symbol, 
+                              column = "ENTREZID", 
+                              keytype = "SYMBOL", 
+                              multiVals = "first")) %>%
+    filter(!is.na(Entrez_ID))  # Remove unmapped genes
+  
+  # Create a named gene list for GSEA
+  gene_list <- gene_data$score
+  names(gene_list) <- gene_data$Entrez_ID
+  
+  # Load MSigDB gene sets and prepare TERM2GENE object
+  msigdb_gene_sets <- msigdbr(species = "Homo sapiens", category = MyMsigDB)
+  term2gene <- msigdb_gene_sets %>% dplyr::select(gs_name, entrez_gene)
+  term2gene_filtered <- term2gene %>% filter(entrez_gene %in% names(gene_list))
+  
+  # Perform GSEA
+  gsea_results <- GSEA(geneList = gene_list, 
+                       TERM2GENE = term2gene_filtered, 
+                       minGSSize = 15, 
+                       maxGSSize = 500, 
+                       pvalueCutoff = 0.05, 
+                       verbose = TRUE)
+  
+  # Convert GSEA results to a data frame
+  gsea_results_df <- as.data.frame(gsea_results)
+  
+  # Convert "core enrichment" ENTREZ IDs to gene symbols
+  gsea_results_df$core_enrichment <- gsub("/", ",", gsea_results_df$core_enrichment) %>%  # Replace "/" with "," for splitting
+    lapply(function(x) {
+      entrez_ids <- strsplit(x, ",")[[1]]  # Split the core enrichment column into ENTREZ IDs
+      symbols <- mapIds(org.Hs.eg.db, 
+                        keys = entrez_ids, 
+                        column = "SYMBOL", 
+                        keytype = "ENTREZID", 
+                        multiVals = "first")  # Map to gene symbols
+      paste(symbols, collapse = "/")  # Combine gene symbols with "/"
+    }) %>%
+    unlist()  # Flatten the list back into a character vector
+  
+  # Save results
+  write.csv(gsea_results_df, output_file, row.names = FALSE)
+  cat("Results saved to:", output_file, "\n")
+
+  
+  # Create and save dot plot
+  dotplot_figure <- dotplot(gsea_results, showCategory = 20, orderBy = "p.adjust") +
+    ggtitle(paste("Top 20 Pathways (", MyMsigDB, ") by Adjusted P-Value", sep = "")) +
+    xlab("Gene Ratio") +
+    theme(axis.text.y = element_text(size = 10),
+          plot.title = element_text(size = 14, face = "bold"))
+  ggsave(dotplot_file, plot = dotplot_figure, width = 10, height = 8, dpi = 300)
+  cat("Dot plot saved to:", dotplot_file, "\n")
+}
+
+```
+
+
+Parameter Combinations
+
+```{r}
+# Define parameter combinations
+MyMsigDB_list <- c("C7", "C5", "C3", "C6", "H", "C2", "C4")
+gene_list <- c("IL.6", "IL.1b", "IL.18")
+
+```
+
+
+
+```{r}
+# Iterate over parameter combinations
+for (db in MyMsigDB_list) {
+  for (gene in gene_list) {
+    tryCatch({
+      run_gsea(MyMsigDB = db, gene = gene)
+    }, error = function(e) {
+      cat("Error processing combination:", db, gene, "\n", e$message, "\n")
+    })
+  }
+}
+
+```
