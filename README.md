@@ -1,6 +1,6 @@
-# Gene Ontology (GO) Enrichment Analysis Pipeline
+# Gene Ontology (GO) Enrichment Analysis Pipelines
 
-This repository contains scripts and data for performing GO enrichment analysis and other related tasks. The structure of the repository is organized to facilitate reproducibility and clarity.
+This repository contains scripts and data for performing GO and C2 collection enrichment analysis and other related tasks using single variant association and rare variant association from Ryan's work. The structure of the repository is organized to facilitate reproducibility and clarity.
 
 ---
 
@@ -11,8 +11,13 @@ The repository is organized into the following main directories:
 ### 1. `codes/`
 This folder contains all the scripts used in the project, categorized by language:
 
-- **`python/`**: Python scripts for data preprocessing, analysis, or visualization.
-- **`R/`**: R scripts for statistical analysis and GO enrichment.
+- **`python/`**: Python scripts for GO terms extraction from supplementary (PDF) in Jung et al (2021).
+        - PDF_scrapping.py: A custom python script to extract GO terms. It only need the location of the PDF and the pages you want to extract data from.
+- **`R/`**: R scripts to perform GO and C2, C3, C4, C5, C6, and C7 enrichment analysis.
+        - Canonical_Pathway_Enrichment_Analysis.Rmd
+        - Canonical_Pathway_Enrichment_Analysis.html
+        - Gene_Ontology_Enrichment_Analysis.Rmd
+        - Gene_Ontology_Enrichment_Analysis.html
 
 ---
 
