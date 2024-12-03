@@ -2,6 +2,8 @@
 
 This repository contains scripts and data (inputs and outputs) for performing GO and C2 collection enrichment analysis and other related tasks using single variant association and rare variant association from Ryan's work. The structure of the repository is organized to facilitate reproducibility and clarity.
 
+**Note:** The scripts listed below were successfully tested on EUR and IL6, IL1b, and IL18. However, inputs and outputs included correspond only to EUR & IL6. For additional inputs and outputs, please, contact Basilio Cieza Huaman (bciezah@gmail.com).
+
 ---
 
 ## 1. `codes/`
