@@ -1,0 +1,135 @@
+---
+title: "GO_Enrichment_Analysis"
+author: "Basilio Cieza Huaman"
+date: "2024-12-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# ========================================================================
+# GO Enrichment Analysis Pipeline for Multiple Parameter Combinations
+# ========================================================================
+
+# -------------------------------
+# Required Libraries
+# -------------------------------
+```{r}
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(ggplot2)
+library(tidyverse)
+```
+
+# -------------------------------
+# STEP 1: Define Parameters and Input/Output Paths
+# -------------------------------
+# Define parameter combinations
+```{r}
+studies <- c("rare_var")            # Add all study names here
+MyMsigDBs <- c("BP",'CC','MF')    # Biological Processes (BP), Molecular Functions (MF), Cellular Components (CC)
+cohorts <- c("EUR5")                # Add all cohort names here
+genes <- c("IL.6","IL.1b","IL.18") # Add all target genes here
+date <- Sys.Date()  # Current date
+test_number <- "v1"     # Test number
+
+# Define base paths foCr input/output
+mypath <- "C:/Users/bciez/Documents/Basilio/UCSF/WGS_Project/sum_stat/"
+input_folder <- "inputs"
+output_folder <- "outputs"
+```
+# -------------------------------
+# STEP 2: Function to Run GO Enrichment Analysis
+# -------------------------------
+
+```{r}
+run_enrichment_analysis <- function(study, MyMsigDB, cohort, gene,date,test_number) {
+  # Construct file paths
+  input_file <- file.path(mypath, study, input_folder, paste0('deduplicated_',study, "_", cohort, "_", gene, ".txt"))
+  print(input_file)
+  output_file <- file.path(mypath, study, output_folder, paste0("GO_results_", study, "_", cohort, "_", gene, "_", MyMsigDB, "_",date,"_",test_number,".csv"))
+
+  # Check if the input file exists
+  if (!file.exists(input_file)) {
+    warning(paste("File not found:", input_file))
+    return(NULL)
+  }
+  
+  # Load input data
+  df <- read.csv(input_file,sep='\t')
+  print(dim(df))
+  print(head(df))
+  
+  # Filter data by p-value threshold
+  df$P.adj <- p.adjust(df$P, method = "holm") 
+  #df$P.adj <- df$P
+  gene_data <- df[df$P.adj < 0.05, ]
+  
+  # cap extreme pvalue
+  gene_data <- gene_data %>%
+  mutate(P.adj = ifelse(P.adj < 1e-300, 1e-300, P.adj))
+  colnames(gene_data)[c(1, 2)] <- c("Gene_Symbol", "pvalue")
+  
+    # Compute GSEA scores
+  gene_data <- gene_data %>%
+    mutate(score = -log10(P.adj)) %>%
+    arrange(desc(score)) %>%
+    na.omit()
+  
+  # Map Gene Symbols to Entrez IDs
+  mapped_genes <- mapIds(org.Hs.eg.db, 
+                         keys = gene_data$Gene_Symbol,
+                         column = "ENTREZID",
+                         keytype = "SYMBOL",
+                         multiVals = "first")
+  
+  # Add Entrez IDs to data and filter out unmapped genes
+  gene_data <- gene_data %>%
+    mutate(Entrez_ID = mapped_genes) %>%
+    filter(!is.na(Entrez_ID))
+  
+  # Extract Entrez IDs for enrichment analysis
+  gene_list <- gene_data$Entrez_ID
+  
+  # Perform GO Enrichment Analysis
+  ego_results <- enrichGO(gene          = gene_list, 
+                          OrgDb         = org.Hs.eg.db, 
+                          ont           = MyMsigDB, 
+                          pvalueCutoff  = 0.05, 
+                          qvalueCutoff  = 0.2, 
+                          keyType       = "ENTREZID", 
+                          readable      = TRUE)
+  
+  # Save results to a CSV file
+  if (!is.null(ego_results)) {
+    ego_results_df <- as.data.frame(ego_results)
+    write.csv(ego_results_df, output_file, row.names = FALSE)
+    message(paste("Results saved to:", output_file))
+  } else {
+    warning(paste("No enrichment results for:", input_file))
+  }
+}
+
+```
+# -------------------------------
+# STEP 3: Loop Through Parameter Combinations
+# -------------------------------
+
+
+```{r}
+for (gene in genes) {
+  for (study in studies) {
+    for (cohort in cohorts) {
+      for (MyMsigDB in MyMsigDBs) {
+        run_enrichment_analysis(study, MyMsigDB, cohort, gene,date,test_number )
+      }
+    }
+  }
+}
+```
+# ========================================================================
+# END OF PIPELINE
+# ========================================================================
+

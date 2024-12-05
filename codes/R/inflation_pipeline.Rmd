@@ -1,0 +1,86 @@
+---
+title: "inflation_pipeline"
+author: "Basilio Cieza Huaman"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r }
+
+# Define base paths for input/output
+mypath <- "C:/Users/bciez/Documents/Basilio/UCSF/WGS_Project/sum_stat/"
+input_folder <- "inputs"
+output_folder <- "outputs"
+study="single_marker"
+cohort="EUR5"
+gene="IL.6"
+MyMsigDB="BP"
+date <- Sys.Date()  # Current date
+test_number <- "PVAL_TRHESHOLD_1E-04_corrSUMstatPval"     # Test number
+  input_file <- file.path(mypath, study, output_folder,paste0("GO_results_", study, "_", cohort, "_", gene, "_", MyMsigDB,"_",date,"_",test_number,".csv"))
+print(input_file)
+
+gsea_results_df <- read.csv(input_file)
+head(gsea_results_df)
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r - Histogram of raw pvalues}
+hist(gsea_results_df$p.adjust, breaks = 50, main = "Histogram of Raw P-values", xlab = "P-value", col = "blue")
+
+```
+
+```{r - QQ-plot}
+library(qqman)
+qq(gsea_results_df$p.adjust, main = "QQ Plot of P-values")
+```
+```{r - calculate inflation parameter - lambda}
+gsea_results_df$chisq <- qchisq(1 - gsea_results_df$p.adjust, df = 1)
+lambda <- median(gsea_results_df$chisq) / qchisq(0.5, df = 1)
+print(lambda)
+
+```
+```{r - corretion using Holm}
+gsea_results_df$p.adjust <- p.adjust(gsea_results_df$pvalue, method = "holm")  # Holm's correction
+gsea_results_df$chisq <- qchisq(1 - gsea_results_df$p.adjust, df = 1)
+lambda <- median(gsea_results_df$chisq) / qchisq(0.5, df = 1)
+print(lambda)
+
+```
+
+```{r - corretion using Bonferroni}
+gsea_results_df$p.adjust <- p.adjust(gsea_results_df$pvalue, method = "bonferroni")  # Bonferroni correction
+gsea_results_df$chisq <- qchisq(1 - gsea_results_df$p.adjust, df = 1)
+lambda <- median(gsea_results_df$chisq) / qchisq(0.5, df = 1)
+print(lambda)
+
+```
+
+```{r - filter}
+qq(gsea_results_df$p.adjust, main = "QQ Plot of P-values")
+```
+
+```{r - QQ-plot}
+
+```
+
+```{r - calculate inflation parameter - lambda}
+gsea_results_filtered <- gsea_results_df %>%
+  filter(BgRatio >= min_threshold & BgRatio <= max_threshold)
+
+
+```
